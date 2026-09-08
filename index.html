@@ -471,6 +471,7 @@ let clearProgress = 0;
 let clearAnimationId = 0;
 let animationToken = 0;
 let repeatTimer = 0;
+let repeatSource = null;
 
 // DOM references
 const boardCanvas = document.querySelector('#board');
@@ -873,30 +874,37 @@ function action(name) {
   ACTIONS[name]?.();
 }
 
-function stopRepeat() {
+function stopRepeat(source) {
+  if (source !== undefined && source !== repeatSource) return;
   clearInterval(repeatTimer);
   repeatTimer = 0;
+  repeatSource = null;
 }
 
-function startRepeat(name) {
+function startRepeat(name, source) {
   if (!['left', 'right', 'down'].includes(name)) return;
   const speed = name === 'down' ? 50 : 150;
+  repeatSource = source;
   repeatTimer = setInterval(() => action(name), speed);
 }
 
 for (const button of actionButtons) {
   button.addEventListener('pointerdown', event => {
     event.preventDefault();
-    stopRepeat();
     const name = button.dataset.action;
+    const repeats = ['left', 'right', 'down'].includes(name);
+    if (repeats) {
+      stopRepeat();
+      button.setPointerCapture?.(event.pointerId);
+    }
     action(name);
-    startRepeat(name);
+    if (repeats) startRepeat(name, event.pointerId);
   });
-  button.addEventListener('pointerup', stopRepeat);
-  button.addEventListener('pointercancel', stopRepeat);
-  button.addEventListener('pointerleave', stopRepeat);
+  button.addEventListener('pointerup', event => stopRepeat(event.pointerId));
+  button.addEventListener('pointercancel', event => stopRepeat(event.pointerId));
+  button.addEventListener('lostpointercapture', event => stopRepeat(event.pointerId));
 }
-window.addEventListener('pointerup', stopRepeat);
+window.addEventListener('pointerup', event => stopRepeat(event.pointerId));
 
 const KEY_ACTIONS = {
   KeyA: 'left',
@@ -925,14 +933,14 @@ document.addEventListener('keydown', event => {
   if (!name) return;
   event.preventDefault();
   if (event.repeat) return;
-  stopRepeat();
+  if (['left', 'right', 'down'].includes(name)) stopRepeat();
   action(name);
-  startRepeat(name);
+  startRepeat(name, event.code);
 });
 
 document.addEventListener('keyup', event => {
   const name = KEY_ACTIONS[event.code];
-  if (['left', 'right', 'down'].includes(name)) stopRepeat();
+  if (['left', 'right', 'down'].includes(name)) stopRepeat(event.code);
 });
 
 const blockedBrowserEvents = [
