@@ -170,8 +170,8 @@ button {
   top: 50%;
   left: 50%;
   z-index: -1;
-  width: calc(var(--pad-cell) * .97);
-  height: calc(var(--pad-cell) * 1.45);
+  width: calc(var(--pad-cell) * .92);
+  height: calc(var(--pad-cell) * 1.32);
   translate: -50% -50%;
   background: url('dpad-key.png') center / 100% 100% no-repeat;
   filter: drop-shadow(0 4px 1px #02040acc);
@@ -185,26 +185,26 @@ button {
 .hard {
   grid-column: 2; grid-row: 1;
   justify-self: center;
-  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
+  width: calc(var(--pad-cell) * .92); height: calc(var(--pad-cell) * 1.32);
 }
 .left {
   grid-column: 1; grid-row: 2;
   align-self: center;
-  width: calc(var(--pad-cell) * 1.45); height: calc(var(--pad-cell) * .97);
+  width: calc(var(--pad-cell) * 1.32); height: calc(var(--pad-cell) * .92);
 }
 .left::before { rotate: -90deg; }
 .right {
   grid-column: 3; grid-row: 2;
-  left: calc(var(--pad-cell) * -.45);
+  left: calc(var(--pad-cell) * -.32);
   align-self: center;
-  width: calc(var(--pad-cell) * 1.45); height: calc(var(--pad-cell) * .97);
+  width: calc(var(--pad-cell) * 1.32); height: calc(var(--pad-cell) * .92);
 }
 .right::before { rotate: 90deg; }
 .down {
   grid-column: 2; grid-row: 3;
-  top: calc(var(--pad-cell) * -.45);
+  top: calc(var(--pad-cell) * -.32);
   justify-self: center;
-  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
+  width: calc(var(--pad-cell) * .92); height: calc(var(--pad-cell) * 1.32);
 }
 .down::before { rotate: 180deg; }
 .dpad-center { z-index: 1; grid-column: 2; grid-row: 2; border: 0; background: transparent; }
@@ -385,7 +385,7 @@ button {
     </div>
     <button class="control shoulder-button shoulder-left" data-action="hold" aria-label="L ホールド">L</button>
     <div class="actions settings-actions">
-      <button id="templateBtn" class="control wide" data-action="template">TEMPLATE</button>
+      <button id="templateBtn" class="control wide" data-action="template">開幕TSD</button>
       <button class="control" data-action="ren">REN</button>
       <button class="control" data-action="mirror">左右反転</button><button class="control danger" data-action="reset">RESET</button>
       <div id="renBadge" class="ren-badge" aria-live="polite"></div>
@@ -814,7 +814,7 @@ function render() {
   undoButtons.forEach(button => {
     button.disabled = animating || !history.length;
   });
-  templateButton.textContent = 'TEMPLATE';
+  templateButton.textContent = '開幕TSD';
   templateButton.setAttribute('aria-label', templateOn ? TEMPLATES[templateIndex].name : 'テンプレート オフ');
 }
 
