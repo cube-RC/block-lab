@@ -573,7 +573,8 @@ function move(dx, dy) {
 function rotate(direction) {
   if (state.gameOver || animating || state.current.type === 'O') return;
   const from = state.current.rot;
-  const to = (from + (direction > 0 ? 1 : 3)) % 4;
+  const usesTwoRotationStates = ['I', 'S', 'Z'].includes(state.current.type);
+  const to = usesTwoRotationStates ? 1 - from : (from + (direction > 0 ? 1 : 3)) % 4;
   const kickTable = state.current.type === 'I' ? IK : JLSTZ;
 
   for (const [dx, dy] of kickTable[`${from}>${to}`]) {
