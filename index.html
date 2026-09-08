@@ -148,13 +148,15 @@ button {
   grid-template-columns: repeat(3, var(--pad-cell));
   grid-template-rows: repeat(3, var(--pad-cell));
   gap: 0;
-  filter: drop-shadow(0 3px 0 #060912);
+  filter: drop-shadow(0 5px 0 #02040a);
 }
 .dpad::before, .dpad::after {
   content: "";
   position: absolute;
   z-index: 0;
-  background: #525b68;
+  border: 2px solid #151a22;
+  background: linear-gradient(145deg, #707987, #444c59 72%);
+  box-shadow: inset 2px 2px 2px #929aa5aa, inset -3px -3px 4px #252a33;
 }
 .dpad::before {
   top: 0;
@@ -172,14 +174,19 @@ button {
 }
 .dpad .control {
   z-index: 1;
-  border: 0;
+  border: 1px solid #242a34;
   border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  font-size: clamp(13px, 2.5vh, 18px);
+  background: linear-gradient(145deg, #737d8b, #48515e);
+  box-shadow: inset 2px 2px 2px #a0a7b188, inset -3px -3px 4px #292f39;
+  font-size: clamp(18px, 3.5vh, 25px);
+  text-shadow: 0 1px 1px #000b;
   line-height: 1;
 }
-.dpad .control:active { background: #747e8c; }
+.dpad .control:active {
+  transform: translateY(3px);
+  background: #414955;
+  box-shadow: inset 3px 3px 5px #171b22, inset -1px -1px 2px #727b87;
+}
 .hard { grid-column: 2; grid-row: 1; border-radius: 12px 12px 0 0 !important; }
 .left { grid-column: 1; grid-row: 2; border-radius: 12px 0 0 12px !important; }
 .right { grid-column: 3; grid-row: 2; border-radius: 0 12px 12px 0 !important; }
@@ -216,6 +223,18 @@ button {
   border-radius: 50%;
   font-size: clamp(16px, 3.2vh, 22px) !important;
 }
+.shoulder-button {
+  position: absolute;
+  top: calc(72% - var(--pad-cell) * 2.15);
+  z-index: 3;
+  width: calc(var(--pad-cell) * 1.45);
+  height: calc(var(--pad-cell) * .52);
+  min-height: 24px;
+  border-radius: 8px;
+  font-size: clamp(10px, 1.8vh, 14px);
+}
+.shoulder-left { left: calc(50% - var(--pad-cell) * 1.5); }
+.shoulder-right { right: calc(50% - var(--pad-cell) * 1.5); }
 .settings-actions {
   position: static;
   width: min(100px, 100%);
@@ -348,6 +367,7 @@ button {
         <button class="control down" data-action="down" aria-label="1マス下へ移動">▼</button>
       </div>
     </div>
+    <button class="control shoulder-button shoulder-left" data-action="hold" aria-label="L ホールド">L</button>
     <div class="actions settings-actions">
       <button id="templateBtn" class="control wide" data-action="template">TEMPLATE</button>
       <button class="control" data-action="ren">REN</button>
@@ -366,6 +386,7 @@ button {
       <button class="control rotate-button hold-x" data-action="hold" aria-label="ホールド">X</button>
       <button class="control rotate-button rotate-left" data-action="ccw" aria-label="左回転">B</button><button class="control rotate-button rotate-right" data-action="cw" aria-label="右回転">A</button>
     </div>
+    <button class="control shoulder-button shoulder-right" data-action="hold" aria-label="R ホールド">R</button>
   </section>
 </main>
 <div class="portrait"><div><span>📱</span>スマホを横向きにしてください</div></div>
@@ -416,16 +437,11 @@ const IK={
  '3>0':[[0,0],[1,0],[-2,0],[1,2],[-2,-1]],'0>3':[[0,0],[-1,0],[2,0],[-1,-2],[2,1]]};
 // Template cells use visible board coordinates; y is 0..19 from the top.
 const TEMPLATES=[
- {name:'TSD 上',cells:[
+ {name:'開幕TSD',cells:[
   {x:3,y:16,type:'J'},{x:4,y:16,type:'J'},{x:5,y:16,type:'J'},
   {x:0,y:17,type:'L'},{x:3,y:17,type:'Z'},{x:4,y:17,type:'Z'},{x:5,y:17,type:'J'},{x:6,y:17,type:'S'},
   {x:0,y:18,type:'L'},{x:4,y:18,type:'Z'},{x:5,y:18,type:'Z'},{x:6,y:18,type:'S'},{x:7,y:18,type:'S'},{x:8,y:18,type:'O'},{x:9,y:18,type:'O'},
-  {x:0,y:19,type:'L'},{x:1,y:19,type:'L'},{x:3,y:19,type:'I'},{x:4,y:19,type:'I'},{x:5,y:19,type:'I'},{x:6,y:19,type:'I'},{x:7,y:19,type:'S'},{x:8,y:19,type:'O'},{x:9,y:19,type:'O'}]},
- {name:'TSD 下',cells:[
-  {x:3,y:16,type:'S'},{x:4,y:16,type:'Z'},{x:5,y:16,type:'Z'},
-  {x:0,y:17,type:'L'},{x:3,y:17,type:'S'},{x:4,y:17,type:'S'},{x:5,y:17,type:'Z'},{x:6,y:17,type:'Z'},
-  {x:0,y:18,type:'L'},{x:4,y:18,type:'S'},{x:5,y:18,type:'J'},{x:6,y:18,type:'J'},{x:7,y:18,type:'J'},{x:8,y:18,type:'O'},{x:9,y:18,type:'O'},
-  {x:0,y:19,type:'L'},{x:1,y:19,type:'L'},{x:3,y:19,type:'I'},{x:4,y:19,type:'I'},{x:5,y:19,type:'I'},{x:6,y:19,type:'I'},{x:7,y:19,type:'J'},{x:8,y:19,type:'O'},{x:9,y:19,type:'O'}]}
+  {x:0,y:19,type:'L'},{x:1,y:19,type:'L'},{x:3,y:19,type:'I'},{x:4,y:19,type:'I'},{x:5,y:19,type:'I'},{x:6,y:19,type:'I'},{x:7,y:19,type:'S'},{x:8,y:19,type:'O'},{x:9,y:19,type:'O'}]}
 ];
 // Runtime state
 let state;
@@ -737,9 +753,11 @@ function drawBoard() {
   }
 
   if (!state.gameOver && state.current) {
-    const landingY = ghostY();
-    for (const [x, y] of cells(state.current, state.current.rot, state.current.x, landingY)) {
-      if (y >= HIDDEN) drawBlock(ctx, x, y - HIDDEN, size, COLORS[state.current.type], .22, 2);
+    if (!templateOn) {
+      const landingY = ghostY();
+      for (const [x, y] of cells(state.current, state.current.rot, state.current.x, landingY)) {
+        if (y >= HIDDEN) drawBlock(ctx, x, y - HIDDEN, size, COLORS[state.current.type], .22, 2);
+      }
     }
     for (const [x, y] of cells()) {
       if (y >= HIDDEN) drawBlock(ctx, x, y - HIDDEN, size, COLORS[state.current.type]);
@@ -846,7 +864,7 @@ function stopRepeat() {
 
 function startRepeat(name) {
   if (!['left', 'right', 'down'].includes(name)) return;
-  const speed = name === 'down' ? 100 : 150;
+  const speed = name === 'down' ? 50 : 150;
   repeatTimer = setInterval(() => action(name), speed);
 }
 
