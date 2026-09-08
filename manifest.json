@@ -1,6 +1,6 @@
 {
-  "name": "Tetris Practice",
-  "short_name": "Tetris",
+  "name": "てとらぼ",
+  "short_name": "てとらぼ",
   "description": "自然落下なしで積み方を研究できるテトリミノ練習盤",
   "start_url": "./",
   "scope": "./",
