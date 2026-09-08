@@ -166,8 +166,13 @@ button {
 .dpad .control::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: auto;
+  top: 50%;
+  left: 50%;
   z-index: -1;
+  width: calc(var(--pad-cell) * .97);
+  height: calc(var(--pad-cell) * 1.45);
+  translate: -50% -50%;
   background: url('dpad-key.png') center / 100% 100% no-repeat;
   filter: drop-shadow(0 4px 1px #02040acc);
 }
@@ -187,31 +192,21 @@ button {
   align-self: center;
   width: calc(var(--pad-cell) * 1.45); height: calc(var(--pad-cell) * .97);
 }
-.left::before {
-  inset: auto;
-  top: 50%; left: 50%;
-  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
-  transform: translate(-50%, -50%) rotate(-90deg);
-}
+.left::before { rotate: -90deg; }
 .right {
   grid-column: 3; grid-row: 2;
   left: calc(var(--pad-cell) * -.45);
   align-self: center;
   width: calc(var(--pad-cell) * 1.45); height: calc(var(--pad-cell) * .97);
 }
-.right::before {
-  inset: auto;
-  top: 50%; left: 50%;
-  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
-  transform: translate(-50%, -50%) rotate(90deg);
-}
+.right::before { rotate: 90deg; }
 .down {
   grid-column: 2; grid-row: 3;
   top: calc(var(--pad-cell) * -.45);
   justify-self: center;
   width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
 }
-.down::before { transform: rotate(180deg); }
+.down::before { rotate: 180deg; }
 .dpad-center { z-index: 1; grid-column: 2; grid-row: 2; border: 0; background: transparent; }
 
 .actions {
@@ -381,11 +376,11 @@ button {
     <div class="preview-panel"><div class="label">HOLD</div><canvas id="hold" class="preview"></canvas></div>
     <div class="left-controls">
       <div class="dpad" aria-label="移動操作">
-        <button class="control hard" data-action="hard" aria-label="ハードドロップ">▲</button>
-        <button class="control left" data-action="left" aria-label="左へ移動">◀</button>
+        <button class="control hard" data-action="hard" aria-label="ハードドロップ"></button>
+        <button class="control left" data-action="left" aria-label="左へ移動"></button>
         <span class="dpad-center" aria-hidden="true"></span>
-        <button class="control right" data-action="right" aria-label="右へ移動">▶</button>
-        <button class="control down" data-action="down" aria-label="1マス下へ移動">▼</button>
+        <button class="control right" data-action="right" aria-label="右へ移動"></button>
+        <button class="control down" data-action="down" aria-label="1マス下へ移動"></button>
       </div>
     </div>
     <button class="control shoulder-button shoulder-left" data-action="hold" aria-label="L ホールド">L</button>
