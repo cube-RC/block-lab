@@ -585,7 +585,7 @@ function hardDrop() {
 }
 
 function hold() {
-  if (state.gameOver || animating || !state.canHold) return;
+  if (state.gameOver || animating) return;
   const outgoing = state.current.type;
 
   if (state.hold) {
@@ -599,7 +599,6 @@ function hold() {
   }
 
   if (collides(state.current)) state.gameOver = true;
-  state.canHold = false;
   render();
 }
 
@@ -794,7 +793,7 @@ function render() {
   status.classList.toggle('show', state.gameOver);
   updateRenBadge();
   holdButtons.forEach(button => {
-    button.disabled = animating || !state.canHold || state.gameOver;
+    button.disabled = animating || state.gameOver;
   });
   undoButtons.forEach(button => {
     button.disabled = animating || !history.length;
