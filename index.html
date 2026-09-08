@@ -273,6 +273,44 @@ button {
 .portrait span { display: block; margin-bottom: 12px; font-size: 44px; animation: turn 1.8s ease-in-out infinite; }
 @keyframes turn { 50% { transform: rotate(90deg); } }
 
+.unlock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #080b14;
+}
+.unlock-screen[hidden] { display: none; }
+.unlock-form {
+  display: grid;
+  width: min(280px, 86vw);
+  gap: 12px;
+  text-align: center;
+}
+.unlock-title { font-size: 24px; font-weight: 900; letter-spacing: .08em; }
+.unlock-input {
+  width: 100%;
+  min-height: 52px;
+  border: 2px solid #354665;
+  border-radius: 10px;
+  background: #101729;
+  color: #eaf2ff;
+  font-size: 24px;
+  text-align: center;
+}
+.unlock-button {
+  min-height: 48px;
+  border: 1px solid #55709e;
+  border-radius: 10px;
+  background: linear-gradient(#334d78, #213657);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+}
+.unlock-error { min-height: 1.4em; color: #ff7581; font-size: 13px; }
+
 @media (orientation: portrait), (max-width: 530px) {
   .portrait { display: grid; }
 }
@@ -290,6 +328,14 @@ button {
 </style>
 </head>
 <body>
+<div id="unlockScreen" class="unlock-screen">
+  <form id="unlockForm" class="unlock-form">
+    <div class="unlock-title">TETRIS</div>
+    <input id="unlockInput" class="unlock-input" type="password" maxlength="1" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="パスワード">
+    <button class="unlock-button" type="submit">START</button>
+    <div id="unlockError" class="unlock-error" aria-live="polite"></div>
+  </form>
+</div>
 <main class="app" aria-label="テトリス練習盤">
   <section class="side left-side">
     <div class="preview-panel"><div class="label">HOLD</div><canvas id="hold" class="preview"></canvas></div>
@@ -325,6 +371,27 @@ button {
 <div class="portrait"><div><span>📱</span>スマホを横向きにしてください</div></div>
 <script>
 (()=>{'use strict';
+const UNLOCK_KEY = 'tetris-practice-unlocked';
+const unlockScreen = document.querySelector('#unlockScreen');
+const unlockForm = document.querySelector('#unlockForm');
+const unlockInput = document.querySelector('#unlockInput');
+const unlockError = document.querySelector('#unlockError');
+let isUnlocked = localStorage.getItem(UNLOCK_KEY) === '1';
+
+if (isUnlocked) unlockScreen.hidden = true;
+unlockForm.addEventListener('submit', event => {
+  event.preventDefault();
+  if (unlockInput.value.toLowerCase() !== 't') {
+    unlockInput.value = '';
+    unlockError.textContent = 'パスワードが違います';
+    unlockInput.focus();
+    return;
+  }
+  localStorage.setItem(UNLOCK_KEY, '1');
+  isUnlocked = true;
+  unlockScreen.hidden = true;
+});
+
 const W=10,VISIBLE_H=20,HIDDEN=4,H=VISIBLE_H+HIDDEN,TYPES=['I','O','T','S','Z','J','L'];
 const COLORS={I:'#28cfe8',O:'#f3d83b',T:'#a753d8',S:'#48c95a',Z:'#ef4655',J:'#3975df',L:'#f08a31'};
 const SHAPES={
@@ -819,6 +886,7 @@ const KEY_ACTIONS = {
 };
 
 document.addEventListener('keydown', event => {
+  if (!isUnlocked) return;
   const name = KEY_ACTIONS[event.code];
   if (!name) return;
   event.preventDefault();
@@ -840,8 +908,12 @@ const blockedBrowserEvents = [
 for (const type of blockedBrowserEvents) {
   document.addEventListener(type, event => event.preventDefault(), {passive: false});
 }
-document.addEventListener('touchstart', event => event.preventDefault(), {passive: false});
-document.addEventListener('touchmove', event => event.preventDefault(), {passive: false});
+document.addEventListener('touchstart', event => {
+  if (!event.target.closest('#unlockScreen')) event.preventDefault();
+}, {passive: false});
+document.addEventListener('touchmove', event => {
+  if (!event.target.closest('#unlockScreen')) event.preventDefault();
+}, {passive: false});
 window.addEventListener('resize', render);
 
 reset();
