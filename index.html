@@ -148,36 +148,16 @@ button {
   grid-template-columns: repeat(3, var(--pad-cell));
   grid-template-rows: repeat(3, var(--pad-cell));
   gap: 0;
-  filter: drop-shadow(0 5px 0 #02040a);
 }
 .dpad::before, .dpad::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  border: 2px solid #151a22;
-  background: linear-gradient(145deg, #707987, #444c59 72%);
-  box-shadow: inset 2px 2px 2px #929aa5aa, inset -3px -3px 4px #252a33;
-}
-.dpad::before {
-  top: 0;
-  left: var(--pad-cell);
-  width: var(--pad-cell);
-  height: calc(var(--pad-cell) * 3);
-  border-radius: 12px;
-}
-.dpad::after {
-  top: var(--pad-cell);
-  left: 0;
-  width: calc(var(--pad-cell) * 3);
-  height: var(--pad-cell);
-  border-radius: 12px;
+  content: none;
 }
 .dpad .control {
   z-index: 1;
-  border: 1px solid #242a34;
-  border-radius: 0;
-  background: linear-gradient(145deg, #737d8b, #48515e);
-  box-shadow: inset 2px 2px 2px #a0a7b188, inset -3px -3px 4px #292f39;
+  border: 2px solid #151922;
+  background: linear-gradient(145deg, #737d8b 0%, #4a5360 62%, #363d48 100%);
+  box-shadow: inset 2px 2px 2px #aeb5be88, inset -3px -3px 4px #20252d;
+  filter: drop-shadow(0 4px 0 #02040a);
   font-size: clamp(18px, 3.5vh, 25px);
   text-shadow: 0 1px 1px #000b;
   line-height: 1;
@@ -186,11 +166,31 @@ button {
   transform: translateY(3px);
   background: #414955;
   box-shadow: inset 3px 3px 5px #171b22, inset -1px -1px 2px #727b87;
+  filter: drop-shadow(0 1px 0 #02040a);
 }
-.hard { grid-column: 2; grid-row: 1; border-radius: 12px 12px 0 0 !important; }
-.left { grid-column: 1; grid-row: 2; border-radius: 12px 0 0 12px !important; }
-.right { grid-column: 3; grid-row: 2; border-radius: 0 12px 12px 0 !important; }
-.down { grid-column: 2; grid-row: 3; border-radius: 0 0 12px 12px !important; }
+.hard {
+  grid-column: 2; grid-row: 1;
+  width: var(--pad-cell); height: calc(var(--pad-cell) * 1.48);
+  clip-path: polygon(15% 0,85% 0,100% 15%,100% 68%,70% 68%,50% 100%,30% 68%,0 68%,0 15%);
+}
+.left {
+  grid-column: 1; grid-row: 2;
+  width: calc(var(--pad-cell) * 1.48); height: var(--pad-cell);
+  clip-path: polygon(0 15%,15% 0,68% 0,68% 30%,100% 50%,68% 70%,68% 100%,15% 100%,0 85%);
+}
+.right {
+  grid-column: 3; grid-row: 2;
+  left: calc(var(--pad-cell) * -.48);
+  width: calc(var(--pad-cell) * 1.48); height: var(--pad-cell);
+  clip-path: polygon(32% 0,85% 0,100% 15%,100% 85%,85% 100%,32% 100%,32% 70%,0 50%,32% 30%);
+}
+.down {
+  grid-column: 2; grid-row: 3;
+  top: calc(var(--pad-cell) * -.48);
+  width: var(--pad-cell); height: calc(var(--pad-cell) * 1.48);
+  clip-path: polygon(30% 32%,50% 0,70% 32%,100% 32%,100% 85%,85% 100%,15% 100%,0 85%,0 32%);
+}
+.dpad .control { position: relative; border-radius: 10px; }
 .dpad-center { z-index: 1; grid-column: 2; grid-row: 2; border: 0; background: transparent; }
 
 .actions {
