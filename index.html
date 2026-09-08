@@ -155,43 +155,63 @@ button {
 .dpad .control {
   position: relative;
   z-index: 1;
-  border: 2px solid #151922;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #737d8b 0%, #4a5360 62%, #363d48 100%);
-  box-shadow: inset 2px 2px 2px #aeb5be88, inset -3px -3px 4px #20252d;
-  filter: drop-shadow(0 4px 0 #02040a);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   font-size: clamp(18px, 3.5vh, 25px);
   text-shadow: 0 1px 1px #000b;
   line-height: 1;
 }
+.dpad .control::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url('dpad-key.png') center / 100% 100% no-repeat;
+  filter: drop-shadow(0 4px 1px #02040acc);
+}
 .dpad .control:active {
   transform: translateY(3px);
-  background: #414955;
-  box-shadow: inset 3px 3px 5px #171b22, inset -1px -1px 2px #727b87;
-  filter: drop-shadow(0 1px 0 #02040a);
+  background: transparent;
+  box-shadow: none;
+  filter: brightness(.78);
 }
 .hard {
   grid-column: 2; grid-row: 1;
-  width: var(--pad-cell); height: calc(var(--pad-cell) * 1.4);
-  clip-path: polygon(16% 0,84% 0,94% 5%,100% 16%,100% 70%,96% 79%,88% 86%,62% 86%,50% 100%,38% 86%,12% 86%,4% 79%,0 70%,0 16%,6% 5%);
+  justify-self: center;
+  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
 }
 .left {
   grid-column: 1; grid-row: 2;
-  width: calc(var(--pad-cell) * 1.4); height: var(--pad-cell);
-  clip-path: polygon(0 16%,5% 6%,16% 0,70% 0,79% 4%,86% 12%,86% 38%,100% 50%,86% 62%,86% 88%,79% 96%,70% 100%,16% 100%,5% 94%,0 84%);
+  align-self: center;
+  width: calc(var(--pad-cell) * 1.45); height: calc(var(--pad-cell) * .97);
+}
+.left::before {
+  inset: auto;
+  top: 50%; left: 50%;
+  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
+  transform: translate(-50%, -50%) rotate(-90deg);
 }
 .right {
   grid-column: 3; grid-row: 2;
-  left: calc(var(--pad-cell) * -.4);
-  width: calc(var(--pad-cell) * 1.4); height: var(--pad-cell);
-  clip-path: polygon(14% 12%,21% 4%,30% 0,84% 0,95% 6%,100% 16%,100% 84%,95% 94%,84% 100%,30% 100%,21% 96%,14% 88%,14% 62%,0 50%,14% 38%);
+  left: calc(var(--pad-cell) * -.45);
+  align-self: center;
+  width: calc(var(--pad-cell) * 1.45); height: calc(var(--pad-cell) * .97);
+}
+.right::before {
+  inset: auto;
+  top: 50%; left: 50%;
+  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 .down {
   grid-column: 2; grid-row: 3;
-  top: calc(var(--pad-cell) * -.4);
-  width: var(--pad-cell); height: calc(var(--pad-cell) * 1.4);
-  clip-path: polygon(38% 14%,50% 0,62% 14%,88% 14%,96% 21%,100% 30%,100% 84%,94% 95%,84% 100%,16% 100%,6% 95%,0 84%,0 30%,4% 21%,12% 14%);
+  top: calc(var(--pad-cell) * -.45);
+  justify-self: center;
+  width: calc(var(--pad-cell) * .97); height: calc(var(--pad-cell) * 1.45);
 }
+.down::before { transform: rotate(180deg); }
 .dpad-center { z-index: 1; grid-column: 2; grid-row: 2; border: 0; background: transparent; }
 
 .actions {

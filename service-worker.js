@@ -1,11 +1,12 @@
-const CACHE_NAME = 'tetris-practice-v22';
+const CACHE_NAME = 'tetris-practice-v23';
 const APP_FILES = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './apple-touch-icon.png'
+  './apple-touch-icon.png',
+  './dpad-key.png'
 ];
 
 self.addEventListener('install', event => {
