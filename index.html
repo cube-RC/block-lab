@@ -170,36 +170,28 @@ button {
   box-shadow: inset 3px 3px 5px #171b22, inset -1px -1px 2px #727b87;
   filter: drop-shadow(0 1px 0 #02040a);
 }
-.dpad .control::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  width: 38%;
-  height: 42%;
-  background: #414955;
-  filter: drop-shadow(0 2px 0 #02040a);
-  pointer-events: none;
-}
 .hard {
   grid-column: 2; grid-row: 1;
-  width: var(--pad-cell); height: var(--pad-cell);
+  width: var(--pad-cell); height: calc(var(--pad-cell) * 1.4);
+  clip-path: polygon(16% 0,84% 0,94% 5%,100% 16%,100% 70%,96% 79%,88% 86%,62% 86%,50% 100%,38% 86%,12% 86%,4% 79%,0 70%,0 16%,6% 5%);
 }
-.hard::after { left: 31%; bottom: -38%; clip-path: polygon(0 0,100% 0,50% 100%); }
 .left {
   grid-column: 1; grid-row: 2;
-  width: var(--pad-cell); height: var(--pad-cell);
+  width: calc(var(--pad-cell) * 1.4); height: var(--pad-cell);
+  clip-path: polygon(0 16%,5% 6%,16% 0,70% 0,79% 4%,86% 12%,86% 38%,100% 50%,86% 62%,86% 88%,79% 96%,70% 100%,16% 100%,5% 94%,0 84%);
 }
-.left::after { top: 29%; right: -40%; clip-path: polygon(0 0,100% 50%,0 100%); }
 .right {
   grid-column: 3; grid-row: 2;
-  width: var(--pad-cell); height: var(--pad-cell);
+  left: calc(var(--pad-cell) * -.4);
+  width: calc(var(--pad-cell) * 1.4); height: var(--pad-cell);
+  clip-path: polygon(14% 12%,21% 4%,30% 0,84% 0,95% 6%,100% 16%,100% 84%,95% 94%,84% 100%,30% 100%,21% 96%,14% 88%,14% 62%,0 50%,14% 38%);
 }
-.right::after { top: 29%; left: -40%; clip-path: polygon(100% 0,0 50%,100% 100%); }
 .down {
   grid-column: 2; grid-row: 3;
-  width: var(--pad-cell); height: var(--pad-cell);
+  top: calc(var(--pad-cell) * -.4);
+  width: var(--pad-cell); height: calc(var(--pad-cell) * 1.4);
+  clip-path: polygon(38% 14%,50% 0,62% 14%,88% 14%,96% 21%,100% 30%,100% 84%,94% 95%,84% 100%,16% 100%,6% 95%,0 84%,0 30%,4% 21%,12% 14%);
 }
-.down::after { left: 31%; top: -38%; clip-path: polygon(50% 0,100% 100%,0 100%); }
 .dpad-center { z-index: 1; grid-column: 2; grid-row: 2; border: 0; background: transparent; }
 
 .actions {

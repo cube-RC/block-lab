@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tetris-practice-v21';
+const CACHE_NAME = 'tetris-practice-v22';
 const APP_FILES = [
   './',
   './index.html',
