@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="theme-color" content="#080b14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tetris">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>TETRIS PRACTICE</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #080b14;
+  --panel: #101729;
+  --line: #27334d;
+  --text: #eaf2ff;
+  --muted: #8fa0ba;
+  --pad-cell: clamp(42px, 8vh, 58px);
+  --cell: min(calc((100dvh - 12px) / 20), calc((100dvw - 310px) / 10));
+  --board-w: calc(var(--cell) * 10);
+  --board-h: calc(var(--cell) * 20);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: radial-gradient(circle at 50% 45%, #17213a 0, #080b14 65%);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+}
+
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  width: 100dvw;
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(132px, 1fr) var(--board-w) minmax(156px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+    max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+
+.side {
+  height: min(100%, var(--board-h));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.left-side, .right-side { position: relative; }
+.left-side { justify-content: flex-start; }
+.left-side .preview-panel { align-self: flex-end; }
+.right-side .next-panel { align-self: flex-start; }
+.left-side .preview-panel, .right-side .next-panel { margin-top: clamp(6px, 1.5vh, 14px); }
+
+.board-wrap {
+  position: relative;
+  width: var(--board-w);
+  height: var(--board-h);
+  filter: drop-shadow(0 8px 18px #0008);
+}
+#board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #070a10;
+  border: 2px solid #6c7c99;
+  border-radius: 3px;
+}
+
+.label {
+  color: #aebbd0;
+  font-size: clamp(9px, 1.8vh, 13px);
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-align: center;
+}
+.preview-panel, .next-panel {
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0c1220dd;
+}
+.preview-panel { width: min(100px, 100%); }
+.preview { display: block; width: 100%; height: clamp(42px, 9vh, 62px); }
+.next-panel { width: min(106px, 100%); }
+.next-item { height: clamp(30px, 7vh, 48px); border-top: 1px solid #1d273c; }
+.next-item:first-of-type { border-top: 0; }
+.next-item canvas { display: block; width: 100%; height: 100%; }
+
+.control {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #5d6675;
+  border-radius: 12px;
+  background: linear-gradient(#626b78, #414955);
+  box-shadow: 0 3px 0 #171a20;
+  font-size: clamp(13px, 2.7vh, 20px);
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+}
+.control:active {
+  transform: translateY(2px);
+  background: #747e8c;
+  box-shadow: 0 1px 0 #171a20;
+}
+
+.left-controls {
+  position: absolute;
+  top: 72%;
+  left: 50%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transform: translate(-50%, -50%);
+}
+.dpad {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, var(--pad-cell));
+  grid-template-rows: repeat(3, var(--pad-cell));
+  gap: 0;
+  filter: drop-shadow(0 3px 0 #060912);
+}
+.dpad::before, .dpad::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  background: #525b68;
+}
+.dpad::before {
+  top: 0;
+  left: var(--pad-cell);
+  width: var(--pad-cell);
+  height: calc(var(--pad-cell) * 3);
+  border-radius: 12px;
+}
+.dpad::after {
+  top: var(--pad-cell);
+  left: 0;
+  width: calc(var(--pad-cell) * 3);
+  height: var(--pad-cell);
+  border-radius: 12px;
+}
+.dpad .control {
+  z-index: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: clamp(13px, 2.5vh, 18px);
+  line-height: 1;
+}
+.dpad .control:active { background: #747e8c; }
+.hard { grid-column: 2; grid-row: 1; border-radius: 12px 12px 0 0 !important; }
+.left { grid-column: 1; grid-row: 2; border-radius: 12px 0 0 12px !important; }
+.right { grid-column: 3; grid-row: 2; border-radius: 0 12px 12px 0 !important; }
+.down { grid-column: 2; grid-row: 3; border-radius: 0 0 12px 12px !important; }
+.dpad-center { z-index: 1; grid-column: 2; grid-row: 2; border: 0; background: transparent; }
+
+.actions {
+  width: min(154px, 100%);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.actions .control { min-height: clamp(34px, 7vh, 48px); font-size: clamp(10px, 2vh, 15px); }
+.play-actions {
+  position: absolute;
+  top: 72%;
+  left: 50%;
+  width: auto;
+  grid-template-columns: repeat(3, var(--pad-cell));
+  grid-template-rows: repeat(3, var(--pad-cell));
+  justify-items: center;
+  column-gap: 0;
+  row-gap: 0;
+  transform: translate(-50%, -50%);
+}
+.play-actions .hold-y { grid-column: 1; grid-row: 2; }
+.play-actions .hold-x { grid-column: 2; grid-row: 1; }
+.play-actions .rotate-left { grid-column: 2; grid-row: 3; }
+.play-actions .rotate-right { grid-column: 3; grid-row: 2; }
+.rotate-button {
+  width: var(--pad-cell);
+  height: var(--pad-cell);
+  min-height: 0 !important;
+  border-radius: 50%;
+  font-size: clamp(16px, 3.2vh, 22px) !important;
+}
+.settings-actions {
+  position: static;
+  width: min(100px, 100%);
+  align-self: flex-end;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+  gap: 4px;
+  margin-top: 4px;
+}
+.settings-actions .control {
+  min-height: clamp(28px, 5.8vh, 40px);
+  font-size: clamp(9px, 1.7vh, 13px);
+}
+.wide { grid-column: 1 / -1; }
+.danger { border-color: #5d6675; background: linear-gradient(#626b78, #414955); }
+
+.status {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+  place-items: center;
+  padding: 12px;
+  background: #050710cf;
+  text-align: center;
+}
+.status.show { display: grid; }
+.status-box { font-size: clamp(18px, 4vh, 30px); font-weight: 900; text-shadow: 0 2px 8px #000; }
+.status-box small { display: block; margin-top: 7px; color: #bac5d8; font-size: 11px; font-weight: 600; }
+.ren-badge {
+  grid-column: 1 / -1;
+  min-height: clamp(24px, 5vh, 36px);
+  color: #ffd45a;
+  font-size: clamp(18px, 4vh, 28px);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 2px 0 #6f4700, 0 0 10px #ffbd2e99;
+  opacity: 0;
+  pointer-events: none;
+}
+.ren-badge.show { opacity: 1; }
+
+.portrait {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background: #080b14;
+  font-weight: 800;
+  text-align: center;
+}
+.portrait span { display: block; margin-bottom: 12px; font-size: 44px; animation: turn 1.8s ease-in-out infinite; }
+@keyframes turn { 50% { transform: rotate(90deg); } }
+
+@media (orientation: portrait), (max-width: 530px) {
+  .portrait { display: grid; }
+}
+@media (max-height: 390px) {
+  :root { --cell: min(calc((100dvh - 8px) / 20), calc((100dvw - 286px) / 10)); }
+  .app {
+    grid-template-columns: minmax(122px, 1fr) var(--board-w) minmax(146px, 1fr);
+    gap: 5px;
+    padding: 4px 6px;
+  }
+  .preview-panel, .next-panel { padding: 3px; }
+  .label { font-size: 9px; }
+  .actions { gap: 3px; }
+}
+</style>
+</head>
+<body>
+<main class="app" aria-label="テトリス練習盤">
+  <section class="side left-side">
+    <div class="preview-panel"><div class="label">HOLD</div><canvas id="hold" class="preview"></canvas></div>
+    <div class="left-controls">
+      <div class="dpad" aria-label="移動操作">
+        <button class="control hard" data-action="hard" aria-label="ハードドロップ">▲</button>
+        <button class="control left" data-action="left" aria-label="左へ移動">◀</button>
+        <span class="dpad-center" aria-hidden="true"></span>
+        <button class="control right" data-action="right" aria-label="右へ移動">▶</button>
+        <button class="control down" data-action="down" aria-label="1マス下へ移動">▼</button>
+      </div>
+    </div>
+    <div class="actions settings-actions">
+      <button id="templateBtn" class="control wide" data-action="template">TEMPLATE</button>
+      <button class="control" data-action="ren">REN</button>
+      <button class="control" data-action="mirror">左右反転</button><button class="control danger" data-action="reset">RESET</button>
+      <div id="renBadge" class="ren-badge" aria-live="polite"></div>
+    </div>
+  </section>
+  <section class="board-wrap">
+    <canvas id="board" width="300" height="600" aria-label="10×20の盤面"></canvas>
+    <div id="status" class="status"><div class="status-box">GAME OVER<small>RESETで最初からやり直せます</small></div></div>
+  </section>
+  <section class="side right-side">
+    <div class="next-panel"><div class="label">NEXT</div><div id="next"></div></div>
+    <div class="actions play-actions">
+      <button class="control rotate-button hold-y" data-action="undo" aria-label="一手戻る">Y</button>
+      <button class="control rotate-button hold-x" data-action="hold" aria-label="ホールド">X</button>
+      <button class="control rotate-button rotate-left" data-action="ccw" aria-label="左回転">B</button><button class="control rotate-button rotate-right" data-action="cw" aria-label="右回転">A</button>
+    </div>
+  </section>
+</main>
+<div class="portrait"><div><span>📱</span>スマホを横向きにしてください</div></div>
+<script>
+(()=>{'use strict';
+const W=10,VISIBLE_H=20,HIDDEN=4,H=VISIBLE_H+HIDDEN,TYPES=['I','O','T','S','Z','J','L'];
+const COLORS={I:'#28cfe8',O:'#f3d83b',T:'#a753d8',S:'#48c95a',Z:'#ef4655',J:'#3975df',L:'#f08a31'};
+const SHAPES={
+ I:[[[0,1],[1,1],[2,1],[3,1]],[[2,0],[2,1],[2,2],[2,3]],[[0,2],[1,2],[2,2],[3,2]],[[1,0],[1,1],[1,2],[1,3]]],
+ O:[[[1,0],[2,0],[1,1],[2,1]],[[1,0],[2,0],[1,1],[2,1]],[[1,0],[2,0],[1,1],[2,1]],[[1,0],[2,0],[1,1],[2,1]]],
+ T:[[[1,0],[0,1],[1,1],[2,1]],[[1,0],[1,1],[2,1],[1,2]],[[0,1],[1,1],[2,1],[1,2]],[[1,0],[0,1],[1,1],[1,2]]],
+ S:[[[1,0],[2,0],[0,1],[1,1]],[[1,0],[1,1],[2,1],[2,2]],[[1,1],[2,1],[0,2],[1,2]],[[0,0],[0,1],[1,1],[1,2]]],
+ Z:[[[0,0],[1,0],[1,1],[2,1]],[[2,0],[1,1],[2,1],[1,2]],[[0,1],[1,1],[1,2],[2,2]],[[1,0],[0,1],[1,1],[0,2]]],
+ J:[[[0,0],[0,1],[1,1],[2,1]],[[1,0],[2,0],[1,1],[1,2]],[[0,1],[1,1],[2,1],[2,2]],[[1,0],[1,1],[0,2],[1,2]]],
+ L:[[[2,0],[0,1],[1,1],[2,1]],[[1,0],[1,1],[1,2],[2,2]],[[0,1],[1,1],[2,1],[0,2]],[[0,0],[1,0],[1,1],[1,2]]]
+};
+// Guideline SRS kick data. Board Y grows downward, so the published Y offsets are inverted here.
+const JLSTZ={
+ '0>1':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],'1>0':[[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+ '1>2':[[0,0],[1,0],[1,1],[0,-2],[1,-2]],'2>1':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+ '2>3':[[0,0],[1,0],[1,-1],[0,2],[1,2]],'3>2':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+ '3>0':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],'0>3':[[0,0],[1,0],[1,-1],[0,2],[1,2]]};
+const IK={
+ '0>1':[[0,0],[-2,0],[1,0],[-2,1],[1,-2]],'1>0':[[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+ '1>2':[[0,0],[-1,0],[2,0],[-1,-2],[2,1]],'2>1':[[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+ '2>3':[[0,0],[2,0],[-1,0],[2,-1],[-1,2]],'3>2':[[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+ '3>0':[[0,0],[1,0],[-2,0],[1,2],[-2,-1]],'0>3':[[0,0],[-1,0],[2,0],[-1,-2],[2,1]]};
+// Template cells use visible board coordinates; y is 0..19 from the top.
+const TEMPLATES=[
+ {name:'TSD 上',cells:[
+  {x:3,y:16,type:'J'},{x:4,y:16,type:'J'},{x:5,y:16,type:'J'},
+  {x:0,y:17,type:'L'},{x:3,y:17,type:'Z'},{x:4,y:17,type:'Z'},{x:5,y:17,type:'J'},{x:6,y:17,type:'S'},
+  {x:0,y:18,type:'L'},{x:4,y:18,type:'Z'},{x:5,y:18,type:'Z'},{x:6,y:18,type:'S'},{x:7,y:18,type:'S'},{x:8,y:18,type:'O'},{x:9,y:18,type:'O'},
+  {x:0,y:19,type:'L'},{x:1,y:19,type:'L'},{x:3,y:19,type:'I'},{x:4,y:19,type:'I'},{x:5,y:19,type:'I'},{x:6,y:19,type:'I'},{x:7,y:19,type:'S'},{x:8,y:19,type:'O'},{x:9,y:19,type:'O'}]},
+ {name:'TSD 下',cells:[
+  {x:3,y:16,type:'S'},{x:4,y:16,type:'Z'},{x:5,y:16,type:'Z'},
+  {x:0,y:17,type:'L'},{x:3,y:17,type:'S'},{x:4,y:17,type:'S'},{x:5,y:17,type:'Z'},{x:6,y:17,type:'Z'},
+  {x:0,y:18,type:'L'},{x:4,y:18,type:'S'},{x:5,y:18,type:'J'},{x:6,y:18,type:'J'},{x:7,y:18,type:'J'},{x:8,y:18,type:'O'},{x:9,y:18,type:'O'},
+  {x:0,y:19,type:'L'},{x:1,y:19,type:'L'},{x:3,y:19,type:'I'},{x:4,y:19,type:'I'},{x:5,y:19,type:'I'},{x:6,y:19,type:'I'},{x:7,y:19,type:'J'},{x:8,y:19,type:'O'},{x:9,y:19,type:'O'}]}
+];
+// Runtime state
+let state;
+let history = [];
+let templateOn = false;
+let templateIndex = 0;
+let templateMirror = false;
+let animating = false;
+let clearRows = [];
+let clearProgress = 0;
+let clearAnimationId = 0;
+let animationToken = 0;
+let repeatTimer = 0;
+
+// DOM references
+const boardCanvas = document.querySelector('#board');
+const ctx = boardCanvas.getContext('2d');
+const holdCanvas = document.querySelector('#hold');
+const status = document.querySelector('#status');
+const renBadge = document.querySelector('#renBadge');
+const nextRoot = document.querySelector('#next');
+const templateButton = document.querySelector('#templateBtn');
+const holdButtons = document.querySelectorAll('[data-action="hold"]');
+const undoButtons = document.querySelectorAll('[data-action="undo"]');
+const actionButtons = document.querySelectorAll('[data-action]');
+
+const nextCanvases = Array.from({length: 5}, () => {
+  const canvas = document.createElement('canvas');
+  const item = document.createElement('div');
+  canvas.width = 120;
+  canvas.height = 60;
+  item.className = 'next-item';
+  item.append(canvas);
+  nextRoot.append(item);
+  return canvas;
+});
+
+// Board and 7-bag
+function emptyBoard() {
+  return Array.from({length: H}, () => Array(W).fill(null));
+}
+
+function renWalls() {
+  const walls = emptyBoard();
+  for (let y = HIDDEN; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (x < 3 || x > 6) walls[y][x] = true;
+    }
+  }
+  return walls;
+}
+
+function renSeed() {
+  const board = emptyBoard();
+  board[H - 2][6] = 'T';
+  board[H - 1][5] = 'T';
+  board[H - 1][6] = 'T';
+  return board;
+}
+
+function snapshot() {
+  history.push(JSON.parse(JSON.stringify(state)));
+}
+
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+function ensureQueue(minimum = 6) {
+  while (state.queue.length < minimum) {
+    state.queue.push(...shuffle([...TYPES]));
+  }
+}
+
+function makePiece(type) {
+  return {type, x: 3, y: HIDDEN, rot: 0};
+}
+
+function spawn() {
+  ensureQueue();
+  state.current = makePiece(state.queue.shift());
+  ensureQueue();
+  state.canHold = true;
+  if (collides(state.current)) state.gameOver = true;
+}
+
+// Piece movement and collision
+function cells(piece = state.current, rot = piece.rot, x = piece.x, y = piece.y) {
+  return SHAPES[piece.type][rot].map(([dx, dy]) => [x + dx, y + dy]);
+}
+
+function collides(piece, rot = piece.rot, x = piece.x, y = piece.y) {
+  return cells(piece, rot, x, y).some(([cellX, cellY]) =>
+    cellX < 0 || cellX >= W || cellY < 0 || cellY >= H ||
+    state.board[cellY][cellX] || state.fixed[cellY][cellX]
+  );
+}
+
+function move(dx, dy) {
+  if (state.gameOver || animating) return;
+  const nextX = state.current.x + dx;
+  const nextY = state.current.y + dy;
+  if (collides(state.current, state.current.rot, nextX, nextY)) return;
+  state.current.x = nextX;
+  state.current.y = nextY;
+  render();
+}
+
+function rotate(direction) {
+  if (state.gameOver || animating || state.current.type === 'O') return;
+  const from = state.current.rot;
+  const to = (from + (direction > 0 ? 1 : 3)) % 4;
+  const kickTable = state.current.type === 'I' ? IK : JLSTZ;
+
+  for (const [dx, dy] of kickTable[`${from}>${to}`]) {
+    const nextX = state.current.x + dx;
+    const nextY = state.current.y + dy;
+    if (collides(state.current, to, nextX, nextY)) continue;
+    state.current.rot = to;
+    state.current.x = nextX;
+    state.current.y = nextY;
+    render();
+    return;
+  }
+}
+
+function ghostY() {
+  let y = state.current.y;
+  while (!collides(state.current, state.current.rot, state.current.x, y + 1)) y++;
+  return y;
+}
+
+function hardDrop() {
+  if (state.gameOver || animating) return;
+  state.current.y = ghostY();
+  lockPiece();
+}
+
+function hold() {
+  if (state.gameOver || animating || !state.canHold) return;
+  const outgoing = state.current.type;
+
+  if (state.hold) {
+    state.current = makePiece(state.hold);
+    state.hold = outgoing;
+  } else {
+    state.hold = outgoing;
+    ensureQueue();
+    state.current = makePiece(state.queue.shift());
+    ensureQueue();
+  }
+
+  if (collides(state.current)) state.gameOver = true;
+  state.canHold = false;
+  render();
+}
+
+// Locking and line-clear animation
+function lockPiece() {
+  snapshot();
+  for (const [x, y] of cells()) state.board[y][x] = state.current.type;
+  clearRows = [];
+  state.board.forEach((row, y) => {
+    if (row.every((cell, x) => cell || state.fixed[y][x])) clearRows.push(y);
+  });
+  state.renCount = clearRows.length ? state.renCount + 1 : 0;
+  updateRenBadge();
+  state.current = null;
+
+  if (clearRows.length) startLineClear();
+  else {
+    spawn();
+    render();
+  }
+}
+
+function startLineClear() {
+  animating = true;
+  clearProgress = 0;
+  const token = ++animationToken;
+  const start = performance.now();
+
+  const frame = now => {
+    if (token !== animationToken) return;
+    clearProgress = Math.min(1, (now - start) / 600);
+    drawBoard();
+
+    if (clearProgress < 1) {
+      clearAnimationId = requestAnimationFrame(frame);
+      return;
+    }
+
+    const rowsToRemove = new Set(clearRows);
+    state.board = state.board.filter((_, y) => !rowsToRemove.has(y));
+    while (state.board.length < H) state.board.unshift(Array(W).fill(null));
+    clearRows = [];
+    animating = false;
+    spawn();
+    render();
+  };
+
+  clearAnimationId = requestAnimationFrame(frame);
+}
+
+function startGame(fixed = emptyBoard(), board = emptyBoard()) {
+  animationToken++;
+  cancelAnimationFrame(clearAnimationId);
+  animating = false;
+  clearRows = [];
+  clearProgress = 0;
+  history = [];
+  state = {
+    board,
+    fixed,
+    queue: [],
+    hold: null,
+    current: null,
+    canHold: true,
+    renCount: 0,
+    gameOver: false
+  };
+  spawn();
+  render();
+}
+
+function reset() {
+  startGame();
+}
+
+function startRen() {
+  startGame(renWalls(), renSeed());
+}
+
+function undo() {
+  if (animating || !history.length) return;
+  state = history.pop();
+  render();
+}
+
+// Canvas drawing
+function fitCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const density = Math.min(devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width * density));
+  const height = Math.max(1, Math.round(rect.height * density));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  return {width, height};
+}
+
+function drawBlock(context, x, y, size, color, alpha = 1, inset = 1) {
+  context.globalAlpha = alpha;
+  context.fillStyle = color;
+  context.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
+  context.fillStyle = '#fff';
+  context.globalAlpha = alpha * .2;
+  context.fillRect(x * size + inset, y * size + inset, size - inset * 2, Math.max(2, size * .13));
+  context.globalAlpha = 1;
+}
+
+function drawBoard() {
+  const {width, height} = fitCanvas(boardCanvas);
+  const size = Math.min(width / W, height / VISIBLE_H);
+  const offsetX = (width - size * W) / 2;
+  const offsetY = (height - size * VISIBLE_H) / 2;
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.fillStyle = '#070a10';
+  ctx.fillRect(0, 0, size * W, size * VISIBLE_H);
+  ctx.strokeStyle = '#192236';
+  ctx.lineWidth = 1;
+
+  for (let x = 0; x <= W; x++) {
+    ctx.beginPath();
+    ctx.moveTo(x * size, 0);
+    ctx.lineTo(x * size, size * VISIBLE_H);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= VISIBLE_H; y++) {
+    ctx.beginPath();
+    ctx.moveTo(0, y * size);
+    ctx.lineTo(size * W, y * size);
+    ctx.stroke();
+  }
+
+  drawTemplate(size);
+
+  for (let y = HIDDEN; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (state.fixed[y][x]) drawBlock(ctx, x, y - HIDDEN, size, '#8d939c');
+      const type = state.board[y][x];
+      if (type) drawBlock(ctx, x, y - HIDDEN, size, COLORS[type]);
+    }
+  }
+
+  if (clearRows.length) {
+    const glow = .12 + .88 * clearProgress;
+    ctx.fillStyle = `rgba(255,255,255,${glow})`;
+    for (const y of clearRows) {
+      if (y >= HIDDEN) ctx.fillRect(0, (y - HIDDEN) * size, W * size, size);
+    }
+  }
+
+  if (!state.gameOver && state.current) {
+    const landingY = ghostY();
+    for (const [x, y] of cells(state.current, state.current.rot, state.current.x, landingY)) {
+      if (y >= HIDDEN) drawBlock(ctx, x, y - HIDDEN, size, COLORS[state.current.type], .22, 2);
+    }
+    for (const [x, y] of cells()) {
+      if (y >= HIDDEN) drawBlock(ctx, x, y - HIDDEN, size, COLORS[state.current.type]);
+    }
+  }
+  ctx.restore();
+}
+
+function drawMini(canvas, type) {
+  const {width, height} = fitCanvas(canvas);
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, width, height);
+  if (!type) return;
+
+  const shape = SHAPES[type][0];
+  const xs = shape.map(cell => cell[0]);
+  const ys = shape.map(cell => cell[1]);
+  const blockWidth = Math.max(...xs) - Math.min(...xs) + 1;
+  const blockHeight = Math.max(...ys) - Math.min(...ys) + 1;
+  const size = Math.min(width / 5.4, height / 3.2);
+  const offsetX = (width - blockWidth * size) / 2 - Math.min(...xs) * size;
+  const offsetY = (height - blockHeight * size) / 2 - Math.min(...ys) * size;
+
+  for (const [x, y] of shape) {
+    drawBlock(context, offsetX / size + x, offsetY / size + y, size, COLORS[type]);
+  }
+}
+
+function render() {
+  drawBoard();
+  drawMini(holdCanvas, state.hold);
+  ensureQueue();
+  nextCanvases.forEach((canvas, index) => drawMini(canvas, state.queue[index]));
+  status.classList.toggle('show', state.gameOver);
+  updateRenBadge();
+  holdButtons.forEach(button => {
+    button.disabled = animating || !state.canHold || state.gameOver;
+  });
+  undoButtons.forEach(button => {
+    button.disabled = animating || !history.length;
+  });
+  templateButton.textContent = 'TEMPLATE';
+  templateButton.setAttribute('aria-label', templateOn ? TEMPLATES[templateIndex].name : 'テンプレート オフ');
+}
+
+function updateRenBadge() {
+  renBadge.textContent = state.renCount ? `REN ${state.renCount}` : '';
+  renBadge.classList.toggle('show', state.renCount > 0);
+}
+
+// Opening-template overlay
+function drawTemplate(size) {
+  if (!templateOn) return;
+  const mirroredType = {J: 'L', L: 'J', S: 'Z', Z: 'S'};
+
+  for (const cell of TEMPLATES[templateIndex].cells) {
+    const x = templateMirror ? W - 1 - cell.x : cell.x;
+    const type = templateMirror ? (mirroredType[cell.type] || cell.type) : cell.type;
+    if (x < 0 || x >= W || cell.y < 0 || cell.y >= VISIBLE_H) continue;
+    drawBlock(ctx, x, cell.y, size, COLORS[type] || '#fff', .12, 2);
+  }
+}
+
+function cycleTemplate() {
+  if (!templateOn) {
+    templateOn = true;
+    templateIndex = 0;
+  } else if (templateIndex < TEMPLATES.length - 1) {
+    templateIndex++;
+  } else {
+    templateOn = false;
+    templateIndex = 0;
+  }
+  render();
+}
+
+// Input
+const ACTIONS = {
+  left: () => move(-1, 0),
+  right: () => move(1, 0),
+  down: () => move(0, 1),
+  hard: hardDrop,
+  cw: () => rotate(1),
+  ccw: () => rotate(-1),
+  hold,
+  undo,
+  ren: startRen,
+  reset,
+  template: cycleTemplate,
+  mirror: () => {
+    templateMirror = !templateMirror;
+    render();
+  }
+};
+
+function action(name) {
+  ACTIONS[name]?.();
+}
+
+function stopRepeat() {
+  clearInterval(repeatTimer);
+  repeatTimer = 0;
+}
+
+function startRepeat(name) {
+  if (!['left', 'right', 'down'].includes(name)) return;
+  const speed = name === 'down' ? 100 : 150;
+  repeatTimer = setInterval(() => action(name), speed);
+}
+
+for (const button of actionButtons) {
+  button.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    stopRepeat();
+    const name = button.dataset.action;
+    action(name);
+    startRepeat(name);
+  });
+  button.addEventListener('pointerup', stopRepeat);
+  button.addEventListener('pointercancel', stopRepeat);
+  button.addEventListener('pointerleave', stopRepeat);
+}
+window.addEventListener('pointerup', stopRepeat);
+
+const KEY_ACTIONS = {
+  KeyA: 'left',
+  KeyD: 'right',
+  KeyS: 'down',
+  KeyW: 'hard',
+  KeyK: 'cw',
+  KeyJ: 'ccw',
+  KeyI: 'undo',
+  KeyU: 'hold',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowDown: 'down',
+  ArrowUp: 'hard',
+  Space: 'hard',
+  KeyZ: 'ccw',
+  KeyX: 'cw',
+  KeyC: 'hold',
+  ShiftLeft: 'hold',
+  KeyR: 'reset'
+};
+
+document.addEventListener('keydown', event => {
+  const name = KEY_ACTIONS[event.code];
+  if (!name) return;
+  event.preventDefault();
+  if (event.repeat) return;
+  stopRepeat();
+  action(name);
+  startRepeat(name);
+});
+
+document.addEventListener('keyup', event => {
+  const name = KEY_ACTIONS[event.code];
+  if (['left', 'right', 'down'].includes(name)) stopRepeat();
+});
+
+const blockedBrowserEvents = [
+  'contextmenu', 'dblclick', 'selectstart', 'dragstart',
+  'gesturestart', 'gesturechange', 'gestureend'
+];
+for (const type of blockedBrowserEvents) {
+  document.addEventListener(type, event => event.preventDefault(), {passive: false});
+}
+document.addEventListener('touchstart', event => event.preventDefault(), {passive: false});
+document.addEventListener('touchmove', event => event.preventDefault(), {passive: false});
+window.addEventListener('resize', render);
+
+reset();
+
+// itch.ioなどの埋め込み表示では登録せず、単独表示のときだけPWAを有効にする。
+if ('serviceWorker' in navigator && window.top === window.self) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(error => {
+      console.warn('Service worker registration failed:', error);
+    });
+  });
+}
+})();
+</script>
+</body>
+</html>
