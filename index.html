@@ -700,6 +700,8 @@ function guidePlace(board, fixed, type, rot, x, y, protectedColumns, enforceGuid
   next.forEach((row, rowY) => {
     if (row.every((cell, cellX) => cell || fixed[rowY][cellX])) fullRows.push(rowY);
   });
+  const isVerticalITetris = type === 'I' && rot === 1 && fullRows.length === 4;
+  if (fullRows.length && !isVerticalITetris) return null;
   if (fullRows.length) {
     const removed = new Set(fullRows);
     const remaining = next.filter((_, rowY) => !removed.has(rowY));
