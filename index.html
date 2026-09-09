@@ -681,6 +681,19 @@ function guideProtectedCount(board, protectedColumns) {
   return count;
 }
 
+function guideFillRatio(board, fixed, protectedColumns) {
+  let filled = 0;
+  let capacity = 0;
+  for (let y = HIDDEN; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (protectedColumns.has(x)) continue;
+      capacity++;
+      if (board[y][x] || fixed[y][x]) filled++;
+    }
+  }
+  return capacity ? filled / capacity : 0;
+}
+
 function guideHasHole(board, fixed, protectedColumns) {
   for (let x = 0; x < W; x++) {
     if (protectedColumns.has(x)) continue;
@@ -695,6 +708,7 @@ function guideHasHole(board, fixed, protectedColumns) {
 
 function guidePlace(board, fixed, type, rot, x, y, protectedColumns, enforceGuide = true) {
   const beforeProtected = guideProtectedCount(board, protectedColumns);
+  const beforeFillRatio = guideFillRatio(board, fixed, protectedColumns);
   const next = board.map(row => row.slice());
   for (const [dx, dy] of SHAPES[type][rot]) next[y + dy][x + dx] = type;
 
@@ -703,7 +717,7 @@ function guidePlace(board, fixed, type, rot, x, y, protectedColumns, enforceGuid
     if (row.every((cell, cellX) => cell || fixed[rowY][cellX])) fullRows.push(rowY);
   });
   const isVerticalITetris = type === 'I' && rot === 1 && fullRows.length === 4;
-  if (fullRows.length && !isVerticalITetris) return null;
+  if (fullRows.length && (!isVerticalITetris || beforeFillRatio < .6)) return null;
   if (fullRows.length) {
     const removed = new Set(fullRows);
     const remaining = next.filter((_, rowY) => !removed.has(rowY));
@@ -854,7 +868,7 @@ function ensureGuideWorker() {
   if (guideWorker || typeof Worker === 'undefined') return guideWorker;
   const engineFunctions = [
     guideProtectedColumns, guideRotationStates, guideBoardKey, guideCollides,
-    guideLandingY, guideProtectedCount, guideHasHole, guidePlace,
+    guideLandingY, guideProtectedCount, guideFillRatio, guideHasHole, guidePlace,
     guidePlacements, guideBoardPenalty, guideFallbackPenalty,
     guideContinuationCounts, computeGuideAnalysis, computeGuideBundle
   ];
