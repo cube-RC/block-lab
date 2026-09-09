@@ -502,6 +502,8 @@ let guideEnabled = localStorage.getItem('tetris-guide-enabled') !== '0';
 let bestDropEnabled = localStorage.getItem('tetris-best-drop-enabled') !== '0';
 let guideMode = localStorage.getItem('tetris-guide-mode') || 'flat-right';
 let guideAnalysis = null;
+let guideHoldAnalysis = null;
+let guideUseHold = false;
 let guideAnalysisSignature = '';
 let guideAnalysisTimer = 0;
 let guideAnalysisToken = 0;
@@ -821,9 +823,31 @@ function computeGuideAnalysis() {
   return {candidates, maxRoutes, best: candidates[0] || null};
 }
 
+function computeGuideBundle() {
+  const originalCurrent = state.current;
+  const originalQueue = state.queue;
+  const currentResult = computeGuideAnalysis();
+  let holdResult = null;
+
+  if (state.hold) {
+    state.current = {type: state.hold, x: 3, y: HIDDEN, rot: 0};
+  } else {
+    ensureQueue(6);
+    state.current = {type: state.queue[0], x: 3, y: HIDDEN, rot: 0};
+    state.queue = state.queue.slice(1);
+  }
+  holdResult = computeGuideAnalysis();
+  state.current = originalCurrent;
+  state.queue = originalQueue;
+
+  const useHold = Boolean(holdResult?.best) &&
+    (!currentResult?.best || holdResult.maxRoutes > currentResult.maxRoutes);
+  return {currentResult, holdResult, useHold};
+}
+
 function currentGuideSignature() {
   if (!state?.current) return '';
-  return `${guideMode}|${state.current.type}|${state.queue.slice(0, 5).join('')}|${guideBoardKey(state.board)}|${guideBoardKey(state.fixed)}`;
+  return `${guideMode}|${state.current.type}|${state.hold || '-'}|${state.queue.slice(0, 6).join('')}|${guideBoardKey(state.board)}|${guideBoardKey(state.fixed)}`;
 }
 
 function ensureGuideWorker() {
@@ -832,7 +856,7 @@ function ensureGuideWorker() {
     guideProtectedColumns, guideRotationStates, guideBoardKey, guideCollides,
     guideLandingY, guideProtectedCount, guideHasHole, guidePlace,
     guidePlacements, guideBoardPenalty, guideFallbackPenalty,
-    guideContinuationCounts, computeGuideAnalysis
+    guideContinuationCounts, computeGuideAnalysis, computeGuideBundle
   ];
   const source = `
     const W=${W}, H=${H}, HIDDEN=${HIDDEN};
@@ -845,10 +869,10 @@ function ensureGuideWorker() {
     function ensureQueue() {}
     ${engineFunctions.map(fn => fn.toString()).join('\n')}
     self.onmessage = event => {
-      const {token, signature, board, fixed, current, queue, mode} = event.data;
+      const {token, signature, board, fixed, current, hold, queue, mode} = event.data;
       guideMode = mode;
-      state = {board, fixed, current, queue, gameOver:false};
-      const result = computeGuideAnalysis();
+      state = {board, fixed, current, hold, queue, gameOver:false};
+      const result = computeGuideBundle();
       self.postMessage({token, signature, result});
     };
   `;
@@ -858,7 +882,9 @@ function ensureGuideWorker() {
   guideWorker.onmessage = event => {
     const {token, signature, result} = event.data;
     if (token !== guideAnalysisToken || signature !== currentGuideSignature()) return;
-    guideAnalysis = result;
+    guideAnalysis = result.currentResult;
+    guideHoldAnalysis = result.holdResult;
+    guideUseHold = result.useHold;
     render();
     if (pendingBestDrop) {
       pendingBestDrop = false;
@@ -871,9 +897,11 @@ function ensureGuideWorker() {
     const signature = currentGuideSignature();
     const token = guideAnalysisToken;
     guideAnalysisTimer = setTimeout(() => {
-      const result = computeGuideAnalysis();
+      const result = computeGuideBundle();
       if (token !== guideAnalysisToken || signature !== currentGuideSignature()) return;
-      guideAnalysis = result;
+      guideAnalysis = result.currentResult;
+      guideHoldAnalysis = result.holdResult;
+      guideUseHold = result.useHold;
       render();
       if (pendingBestDrop) {
         pendingBestDrop = false;
@@ -893,6 +921,8 @@ function scheduleGuideAnalysis(force = false) {
   const token = ++guideAnalysisToken;
   guideAnalysisSignature = signature;
   guideAnalysis = null;
+  guideHoldAnalysis = null;
+  guideUseHold = false;
   updateGuideDisplay();
   if (guideWorker && previousSignature !== signature) {
     guideWorker.terminate();
@@ -906,15 +936,18 @@ function scheduleGuideAnalysis(force = false) {
       board: state.board,
       fixed: state.fixed,
       current: state.current,
-      queue: state.queue.slice(0, 5),
+      hold: state.hold,
+      queue: state.queue.slice(0, 6),
       mode: guideMode
     });
     return;
   }
   guideAnalysisTimer = setTimeout(() => {
-    const result = computeGuideAnalysis();
+    const result = computeGuideBundle();
     if (token !== guideAnalysisToken || signature !== currentGuideSignature()) return;
-    guideAnalysis = result;
+    guideAnalysis = result.currentResult;
+    guideHoldAnalysis = result.holdResult;
+    guideUseHold = result.useHold;
     render();
   }, 0);
 }
@@ -945,7 +978,8 @@ function updateGuideDisplay(message = '') {
     guideScore.classList.add('danger');
     return;
   }
-  guideScore.innerHTML = `安定度 ${candidate.score}<small>安全ルート ${candidate.routes.toLocaleString()}</small>`;
+  const holdHint = guideUseHold ? ' · HOLD推奨' : '';
+  guideScore.innerHTML = `安定度 ${candidate.score}<small>安全ルート ${candidate.routes.toLocaleString()}${holdHint}</small>`;
   guideScore.classList.add(candidate.routes ? 'safe' : 'danger');
 }
 
@@ -958,7 +992,20 @@ function performBestDrop() {
     updateGuideDisplay('計算中…');
     return;
   }
-  const best = guideAnalysis?.best;
+  let best = guideAnalysis?.best;
+  if (guideUseHold && guideHoldAnalysis?.best) {
+    const outgoing = state.current.type;
+    if (state.hold) {
+      state.current = makePiece(state.hold);
+      state.hold = outgoing;
+    } else {
+      state.hold = outgoing;
+      ensureQueue();
+      state.current = makePiece(state.queue.shift());
+      ensureQueue();
+    }
+    best = guideHoldAnalysis.best;
+  }
   if (!best) {
     updateGuideDisplay('安全ルートなし');
     return;
@@ -1047,6 +1094,7 @@ function startGame(fixed = emptyBoard(), board = emptyBoard()) {
   clearRows = [];
   clearProgress = 0;
   history = [];
+  pendingBestDrop = false;
   state = {
     board,
     fixed,
