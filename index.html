@@ -280,6 +280,28 @@ button {
 .status.show { display: grid; }
 .status-box { font-size: clamp(18px, 4vh, 30px); font-weight: 900; text-shadow: 0 2px 8px #000; }
 .status-box small { display: block; margin-top: 7px; color: #bac5d8; font-size: 11px; font-weight: 600; }
+.guide-score {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  z-index: 3;
+  min-width: 116px;
+  padding: 5px 9px;
+  border: 1px solid #405474;
+  border-radius: 9px;
+  background: #08101ddd;
+  color: #eaf2ff;
+  font-size: clamp(11px, 2vh, 14px);
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.guide-score small { display: block; margin-top: 3px; color: #9fb0ca; font-size: 9px; font-weight: 700; }
+.guide-score.safe { border-color: #36b77b; color: #72efad; }
+.guide-score.danger { border-color: #d0525e; color: #ff7d89; }
+.guide-score[hidden] { display: none; }
 .ren-badge {
   grid-column: 1 / -1;
   min-height: clamp(24px, 5vh, 36px);
@@ -386,6 +408,9 @@ button {
     <button class="control shoulder-button shoulder-left" data-action="hold" aria-label="L ホールド">L</button>
     <div class="actions settings-actions">
       <button id="templateBtn" class="control wide" data-action="template">開幕TSD</button>
+      <button id="guideBtn" class="control wide" data-action="guide">ガイド ON</button>
+      <button id="guideModeBtn" class="control wide" data-action="guideMode">平積み 右</button>
+      <button id="bestToggleBtn" class="control wide" data-action="bestToggle">即置 ON</button>
       <button class="control" data-action="ren">REN</button>
       <button class="control" data-action="mirror">左右反転</button><button class="control danger" data-action="reset">RESET</button>
       <div id="renBadge" class="ren-badge" aria-live="polite"></div>
@@ -393,13 +418,14 @@ button {
   </section>
   <section class="board-wrap">
     <canvas id="board" width="300" height="600" aria-label="10×20の盤面"></canvas>
+    <div id="guideScore" class="guide-score" hidden></div>
     <div id="status" class="status"><div class="status-box">GAME OVER<small>RESETで最初からやり直せます</small></div></div>
   </section>
   <section class="side right-side">
     <div class="next-panel"><div class="label">NEXT</div><div id="next"></div></div>
     <div class="actions play-actions">
       <button class="control rotate-button hold-y" data-action="undo" aria-label="一手戻る">Y</button>
-      <button class="control rotate-button hold-x" data-action="hold" aria-label="ホールド">X</button>
+      <button class="control rotate-button hold-x" data-action="best" aria-label="おすすめ即置き">X</button>
       <button class="control rotate-button rotate-left" data-action="ccw" aria-label="左回転">B</button><button class="control rotate-button rotate-right" data-action="cw" aria-label="右回転">A</button>
     </div>
     <button class="control shoulder-button shoulder-right" data-action="hold" aria-label="R ホールド">R</button>
@@ -472,6 +498,15 @@ let clearAnimationId = 0;
 let animationToken = 0;
 let repeatTimer = 0;
 let repeatSource = null;
+let guideEnabled = localStorage.getItem('tetris-guide-enabled') !== '0';
+let bestDropEnabled = localStorage.getItem('tetris-best-drop-enabled') !== '0';
+let guideMode = localStorage.getItem('tetris-guide-mode') || 'flat-right';
+let guideAnalysis = null;
+let guideAnalysisSignature = '';
+let guideAnalysisTimer = 0;
+let guideAnalysisToken = 0;
+let guideWorker = null;
+let pendingBestDrop = false;
 
 // DOM references
 const boardCanvas = document.querySelector('#board');
@@ -481,6 +516,10 @@ const status = document.querySelector('#status');
 const renBadge = document.querySelector('#renBadge');
 const nextRoot = document.querySelector('#next');
 const templateButton = document.querySelector('#templateBtn');
+const guideButton = document.querySelector('#guideBtn');
+const guideModeButton = document.querySelector('#guideModeBtn');
+const bestToggleButton = document.querySelector('#bestToggleBtn');
+const guideScore = document.querySelector('#guideScore');
 const holdButtons = document.querySelectorAll('[data-action="hold"]');
 const undoButtons = document.querySelectorAll('[data-action="undo"]');
 const actionButtons = document.querySelectorAll('[data-action]');
@@ -594,6 +633,338 @@ function ghostY() {
   let y = state.current.y;
   while (!collides(state.current, state.current.rot, state.current.x, y + 1)) y++;
   return y;
+}
+
+// Lightweight NEXT5 stability search. It rejects holes, merges duplicate boards,
+// and keeps only the strongest deterministic set at each depth.
+const GUIDE_BEAM_WIDTH = 100;
+const GUIDE_ROUTE_CAP = 1_000_000_000;
+
+function guideProtectedColumns() {
+  if (guideMode === 'four-wide') return new Set([3, 4, 5, 6]);
+  return new Set([guideMode === 'flat-left' ? 0 : 9]);
+}
+
+function guideRotationStates(type) {
+  if (type === 'O') return [0];
+  if (['I', 'S', 'Z'].includes(type)) return [0, 1];
+  return [0, 1, 2, 3];
+}
+
+function guideBoardKey(board) {
+  return board.map(row => row.map(Boolean).map(Number).join('')).join('');
+}
+
+function guideCollides(board, fixed, type, rot, x, y) {
+  return SHAPES[type][rot].some(([dx, dy]) => {
+    const cellX = x + dx;
+    const cellY = y + dy;
+    return cellX < 0 || cellX >= W || cellY < 0 || cellY >= H ||
+      board[cellY][cellX] || fixed[cellY][cellX];
+  });
+}
+
+function guideLandingY(board, fixed, type, rot, x) {
+  let y = HIDDEN;
+  if (guideCollides(board, fixed, type, rot, x, y)) return null;
+  while (!guideCollides(board, fixed, type, rot, x, y + 1)) y++;
+  return y;
+}
+
+function guideProtectedCount(board, protectedColumns) {
+  let count = 0;
+  for (let y = 0; y < H; y++) {
+    for (const x of protectedColumns) if (board[y][x]) count++;
+  }
+  return count;
+}
+
+function guideHasHole(board, fixed, protectedColumns) {
+  for (let x = 0; x < W; x++) {
+    if (protectedColumns.has(x)) continue;
+    let foundBlock = false;
+    for (let y = 0; y < H; y++) {
+      if (board[y][x] || fixed[y][x]) foundBlock = true;
+      else if (foundBlock) return true;
+    }
+  }
+  return false;
+}
+
+function guidePlace(board, fixed, type, rot, x, y, protectedColumns, enforceGuide = true) {
+  const beforeProtected = guideProtectedCount(board, protectedColumns);
+  const next = board.map(row => row.slice());
+  for (const [dx, dy] of SHAPES[type][rot]) next[y + dy][x + dx] = type;
+
+  const fullRows = [];
+  next.forEach((row, rowY) => {
+    if (row.every((cell, cellX) => cell || fixed[rowY][cellX])) fullRows.push(rowY);
+  });
+  if (fullRows.length) {
+    const removed = new Set(fullRows);
+    const remaining = next.filter((_, rowY) => !removed.has(rowY));
+    while (remaining.length < H) remaining.unshift(Array(W).fill(null));
+    next.splice(0, next.length, ...remaining);
+  }
+
+  if (enforceGuide && guideProtectedCount(next, protectedColumns) > beforeProtected) return null;
+  if (enforceGuide && guideHasHole(next, fixed, protectedColumns)) return null;
+  return next;
+}
+
+function guidePlacements(board, fixed, type, protectedColumns, enforceGuide = true) {
+  const placements = [];
+  for (const rot of guideRotationStates(type)) {
+    const shape = SHAPES[type][rot];
+    const minX = Math.min(...shape.map(([x]) => x));
+    const maxX = Math.max(...shape.map(([x]) => x));
+    for (let x = -minX; x < W - maxX; x++) {
+      const y = guideLandingY(board, fixed, type, rot, x);
+      if (y === null) continue;
+      const next = guidePlace(board, fixed, type, rot, x, y, protectedColumns, enforceGuide);
+      if (next) placements.push({rot, x, y, board: next});
+    }
+  }
+  return placements;
+}
+
+function guideBoardPenalty(board, protectedColumns) {
+  const heights = [];
+  for (let x = 0; x < W; x++) {
+    if (protectedColumns.has(x)) continue;
+    let top = H;
+    for (let y = 0; y < H; y++) {
+      if (board[y][x]) { top = y; break; }
+    }
+    heights.push(H - top);
+  }
+  const bumpiness = heights.slice(1).reduce((sum, height, i) => sum + Math.abs(height - heights[i]), 0);
+  return Math.max(0, ...heights) * 4 + bumpiness;
+}
+
+function guideFallbackPenalty(board, fixed, protectedColumns) {
+  let holes = 0;
+  for (let x = 0; x < W; x++) {
+    let foundBlock = false;
+    for (let y = 0; y < H; y++) {
+      if (board[y][x] || fixed[y][x]) foundBlock = true;
+      else if (foundBlock) holes++;
+    }
+  }
+  return holes * 10_000 + guideProtectedCount(board, protectedColumns) * 1_000 + guideBoardPenalty(board, protectedColumns);
+}
+
+function guideContinuationCounts(rootBoards, fixed, nextTypes, protectedColumns) {
+  const rootCount = rootBoards.length;
+  let beam = rootBoards.map((board, index) => {
+    const ways = Array(rootCount).fill(0);
+    ways[index] = 1;
+    return {board, ways};
+  });
+  for (let depth = 0; depth < nextTypes.length; depth++) {
+    const type = nextTypes[depth];
+    const unique = new Map();
+    for (const node of beam) {
+      for (const placement of guidePlacements(node.board, fixed, type, protectedColumns)) {
+        const key = guideBoardKey(placement.board);
+        const existing = unique.get(key);
+        if (existing) {
+          for (let i = 0; i < rootCount; i++) {
+            existing.ways[i] = Math.min(GUIDE_ROUTE_CAP, existing.ways[i] + node.ways[i]);
+          }
+        } else {
+          unique.set(key, {board: placement.board, ways: node.ways.slice()});
+        }
+      }
+    }
+    if (!unique.size) return Array(rootCount).fill(0);
+    if (depth === nextTypes.length - 1) {
+      const totals = Array(rootCount).fill(0);
+      for (const node of unique.values()) {
+        for (let i = 0; i < rootCount; i++) totals[i] = Math.min(GUIDE_ROUTE_CAP, totals[i] + node.ways[i]);
+      }
+      return totals;
+    }
+    beam = [...unique.values()]
+      .sort((a, b) => guideBoardPenalty(a.board, protectedColumns) - guideBoardPenalty(b.board, protectedColumns) || guideBoardKey(a.board).localeCompare(guideBoardKey(b.board)))
+      .slice(0, GUIDE_BEAM_WIDTH);
+  }
+  return Array(rootCount).fill(1);
+}
+
+function computeGuideAnalysis() {
+  if (!state.current || state.gameOver || animating) return null;
+  ensureQueue();
+  const protectedColumns = guideProtectedColumns();
+  let roots = guidePlacements(state.board, state.fixed, state.current.type, protectedColumns);
+  const usingUnsafeFallback = !roots.length;
+  if (usingUnsafeFallback) roots = guidePlacements(state.board, state.fixed, state.current.type, protectedColumns, false);
+  const nextTypes = state.queue.slice(0, 5);
+  const routeCounts = usingUnsafeFallback
+    ? Array(roots.length).fill(0)
+    : guideContinuationCounts(roots.map(root => root.board), state.fixed, nextTypes, protectedColumns);
+  const candidates = roots.map((root, index) => {
+    const routes = routeCounts[index];
+    const penalty = usingUnsafeFallback
+      ? guideFallbackPenalty(root.board, state.fixed, protectedColumns)
+      : guideBoardPenalty(root.board, protectedColumns);
+    return {...root, routes, penalty};
+  });
+  const maxRoutes = Math.max(0, ...candidates.map(candidate => candidate.routes));
+  for (const candidate of candidates) {
+    candidate.score = maxRoutes ? Math.round(candidate.routes / maxRoutes * 100) : 0;
+    delete candidate.board;
+  }
+  candidates.sort((a, b) => b.routes - a.routes || a.penalty - b.penalty || a.rot - b.rot || a.x - b.x);
+  return {candidates, maxRoutes, best: candidates[0] || null};
+}
+
+function currentGuideSignature() {
+  if (!state?.current) return '';
+  return `${guideMode}|${state.current.type}|${state.queue.slice(0, 5).join('')}|${guideBoardKey(state.board)}|${guideBoardKey(state.fixed)}`;
+}
+
+function ensureGuideWorker() {
+  if (guideWorker || typeof Worker === 'undefined') return guideWorker;
+  const engineFunctions = [
+    guideProtectedColumns, guideRotationStates, guideBoardKey, guideCollides,
+    guideLandingY, guideProtectedCount, guideHasHole, guidePlace,
+    guidePlacements, guideBoardPenalty, guideFallbackPenalty,
+    guideContinuationCounts, computeGuideAnalysis
+  ];
+  const source = `
+    const W=${W}, H=${H}, HIDDEN=${HIDDEN};
+    const SHAPES=${JSON.stringify(SHAPES)};
+    const GUIDE_BEAM_WIDTH=${GUIDE_BEAM_WIDTH};
+    const GUIDE_ROUTE_CAP=${GUIDE_ROUTE_CAP};
+    let guideMode='flat-right';
+    let state=null;
+    let animating=false;
+    function ensureQueue() {}
+    ${engineFunctions.map(fn => fn.toString()).join('\n')}
+    self.onmessage = event => {
+      const {token, signature, board, fixed, current, queue, mode} = event.data;
+      guideMode = mode;
+      state = {board, fixed, current, queue, gameOver:false};
+      const result = computeGuideAnalysis();
+      self.postMessage({token, signature, result});
+    };
+  `;
+  const workerUrl = URL.createObjectURL(new Blob([source], {type: 'text/javascript'}));
+  guideWorker = new Worker(workerUrl);
+  URL.revokeObjectURL(workerUrl);
+  guideWorker.onmessage = event => {
+    const {token, signature, result} = event.data;
+    if (token !== guideAnalysisToken || signature !== currentGuideSignature()) return;
+    guideAnalysis = result;
+    render();
+    if (pendingBestDrop) {
+      pendingBestDrop = false;
+      performBestDrop();
+    }
+  };
+  guideWorker.onerror = () => {
+    guideWorker?.terminate();
+    guideWorker = null;
+    const signature = currentGuideSignature();
+    const token = guideAnalysisToken;
+    guideAnalysisTimer = setTimeout(() => {
+      const result = computeGuideAnalysis();
+      if (token !== guideAnalysisToken || signature !== currentGuideSignature()) return;
+      guideAnalysis = result;
+      render();
+      if (pendingBestDrop) {
+        pendingBestDrop = false;
+        performBestDrop();
+      }
+    }, 0);
+  };
+  return guideWorker;
+}
+
+function scheduleGuideAnalysis(force = false) {
+  if ((!guideEnabled && !bestDropEnabled) || !state?.current || state.gameOver || animating) return;
+  const signature = currentGuideSignature();
+  if (!force && signature === guideAnalysisSignature && guideAnalysis) return;
+  const previousSignature = guideAnalysisSignature;
+  clearTimeout(guideAnalysisTimer);
+  const token = ++guideAnalysisToken;
+  guideAnalysisSignature = signature;
+  guideAnalysis = null;
+  updateGuideDisplay();
+  if (guideWorker && previousSignature !== signature) {
+    guideWorker.terminate();
+    guideWorker = null;
+  }
+  const worker = ensureGuideWorker();
+  if (worker) {
+    worker.postMessage({
+      token,
+      signature,
+      board: state.board,
+      fixed: state.fixed,
+      current: state.current,
+      queue: state.queue.slice(0, 5),
+      mode: guideMode
+    });
+    return;
+  }
+  guideAnalysisTimer = setTimeout(() => {
+    const result = computeGuideAnalysis();
+    if (token !== guideAnalysisToken || signature !== currentGuideSignature()) return;
+    guideAnalysis = result;
+    render();
+  }, 0);
+}
+
+function guideCandidateForCurrentGhost() {
+  if (!guideAnalysis || !state.current) return null;
+  const landingY = ghostY();
+  return guideAnalysis.candidates.find(candidate =>
+    candidate.rot === state.current.rot && candidate.x === state.current.x && candidate.y === landingY
+  ) || null;
+}
+
+function updateGuideDisplay(message = '') {
+  guideScore.hidden = !guideEnabled;
+  guideScore.classList.remove('safe', 'danger');
+  if (!guideEnabled) return;
+  if (message) {
+    guideScore.textContent = message;
+    return;
+  }
+  if (!guideAnalysis) {
+    guideScore.textContent = '計算中…';
+    return;
+  }
+  const candidate = guideCandidateForCurrentGhost();
+  if (!candidate) {
+    guideScore.innerHTML = '安定度 0<small>安全ルートなし</small>';
+    guideScore.classList.add('danger');
+    return;
+  }
+  guideScore.innerHTML = `安定度 ${candidate.score}<small>安全ルート ${candidate.routes.toLocaleString()}</small>`;
+  guideScore.classList.add(candidate.routes ? 'safe' : 'danger');
+}
+
+function performBestDrop() {
+  if (!bestDropEnabled || state.gameOver || animating || !state.current) return;
+  const signature = currentGuideSignature();
+  if (!guideAnalysis || guideAnalysisSignature !== signature) {
+    pendingBestDrop = true;
+    if (guideAnalysisSignature !== signature) scheduleGuideAnalysis(true);
+    updateGuideDisplay('計算中…');
+    return;
+  }
+  const best = guideAnalysis?.best;
+  if (!best) {
+    updateGuideDisplay('安全ルートなし');
+    return;
+  }
+  state.current.rot = best.rot;
+  state.current.x = best.x;
+  state.current.y = HIDDEN;
+  hardDrop();
 }
 
 function hardDrop() {
@@ -818,6 +1189,11 @@ function render() {
   });
   templateButton.textContent = '開幕TSD';
   templateButton.setAttribute('aria-label', templateOn ? TEMPLATES[templateIndex].name : 'テンプレート オフ');
+  guideButton.textContent = `ガイド ${guideEnabled ? 'ON' : 'OFF'}`;
+  guideModeButton.textContent = guideMode === 'four-wide' ? '4連' : `平積み ${guideMode === 'flat-left' ? '左' : '右'}`;
+  bestToggleButton.textContent = `即置 ${bestDropEnabled ? 'ON' : 'OFF'}`;
+  updateGuideDisplay();
+  scheduleGuideAnalysis();
 }
 
 function updateRenBadge() {
@@ -851,6 +1227,26 @@ function cycleTemplate() {
   render();
 }
 
+function toggleGuide() {
+  guideEnabled = !guideEnabled;
+  localStorage.setItem('tetris-guide-enabled', guideEnabled ? '1' : '0');
+  render();
+}
+
+function cycleGuideMode() {
+  guideMode = guideMode === 'flat-right' ? 'flat-left' : guideMode === 'flat-left' ? 'four-wide' : 'flat-right';
+  localStorage.setItem('tetris-guide-mode', guideMode);
+  guideAnalysisSignature = '';
+  guideAnalysis = null;
+  render();
+}
+
+function toggleBestDrop() {
+  bestDropEnabled = !bestDropEnabled;
+  localStorage.setItem('tetris-best-drop-enabled', bestDropEnabled ? '1' : '0');
+  render();
+}
+
 // Input
 const ACTIONS = {
   left: () => move(-1, 0),
@@ -860,10 +1256,14 @@ const ACTIONS = {
   cw: () => rotate(1),
   ccw: () => rotate(-1),
   hold,
+  best: performBestDrop,
   undo,
   ren: startRen,
   reset,
   template: cycleTemplate,
+  guide: toggleGuide,
+  guideMode: cycleGuideMode,
+  bestToggle: toggleBestDrop,
   mirror: () => {
     templateMirror = !templateMirror;
     render();
