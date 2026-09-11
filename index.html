@@ -255,7 +255,7 @@ button {
   position: static;
   width: min(100px, 100%);
   align-self: flex-end;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   justify-items: stretch;
   gap: 4px;
   margin-top: 4px;
@@ -407,12 +407,11 @@ button {
     </div>
     <button class="control shoulder-button shoulder-left" data-action="hold" aria-label="L ホールド">L</button>
     <div class="actions settings-actions">
-      <button id="templateBtn" class="control wide" data-action="template">開幕TSD</button>
-      <button id="guideBtn" class="control wide" data-action="guide">ガイド ON</button>
-      <button id="guideModeBtn" class="control wide" data-action="guideMode">平積み 右</button>
-      <button id="bestToggleBtn" class="control wide" data-action="bestToggle">即置 ON</button>
+      <button id="templateBtn" class="control" data-action="template">開幕TSD</button>
       <button class="control" data-action="ren">REN</button>
-      <button class="control" data-action="mirror">左右反転</button><button class="control danger" data-action="reset">RESET</button>
+      <button class="control wide" data-action="mirror">左右反転</button>
+      <button id="guideBtn" class="control wide" data-action="guide">ガイド ON</button>
+      <button class="control danger wide" data-action="reset">RESET</button>
       <div id="renBadge" class="ren-badge" aria-live="polite"></div>
     </div>
   </section>
@@ -441,7 +440,17 @@ const unlockInput = document.querySelector('#unlockInput');
 const unlockError = document.querySelector('#unlockError');
 let isUnlocked = localStorage.getItem(UNLOCK_KEY) === '1';
 
-if (isUnlocked) unlockScreen.hidden = true;
+function requestLandscape() {
+  if (!screen.orientation?.lock) return;
+  screen.orientation.lock('landscape-primary').catch(() => {
+    screen.orientation.lock('landscape').catch(() => {});
+  });
+}
+
+if (isUnlocked) {
+  unlockScreen.hidden = true;
+  requestLandscape();
+}
 unlockForm.addEventListener('submit', event => {
   event.preventDefault();
   if (unlockInput.value.toLowerCase() !== 't') {
@@ -453,6 +462,7 @@ unlockForm.addEventListener('submit', event => {
   localStorage.setItem(UNLOCK_KEY, '1');
   isUnlocked = true;
   unlockScreen.hidden = true;
+  requestLandscape();
 });
 
 const W=10,VISIBLE_H=20,HIDDEN=4,H=VISIBLE_H+HIDDEN,TYPES=['I','O','T','S','Z','J','L'];
@@ -499,8 +509,8 @@ let animationToken = 0;
 let repeatTimer = 0;
 let repeatSource = null;
 let guideEnabled = localStorage.getItem('tetris-guide-enabled') !== '0';
-let bestDropEnabled = localStorage.getItem('tetris-best-drop-enabled') !== '0';
-let guideMode = localStorage.getItem('tetris-guide-mode') || 'flat-right';
+const bestDropEnabled = true;
+const guideMode = 'flat-any';
 let guideAnalysis = null;
 let guideHoldAnalysis = null;
 let guideUseHold = false;
@@ -519,8 +529,6 @@ const renBadge = document.querySelector('#renBadge');
 const nextRoot = document.querySelector('#next');
 const templateButton = document.querySelector('#templateBtn');
 const guideButton = document.querySelector('#guideBtn');
-const guideModeButton = document.querySelector('#guideModeBtn');
-const bestToggleButton = document.querySelector('#bestToggleBtn');
 const guideScore = document.querySelector('#guideScore');
 const holdButtons = document.querySelectorAll('[data-action="hold"]');
 const undoButtons = document.querySelectorAll('[data-action="undo"]');
@@ -644,7 +652,17 @@ const GUIDE_ROUTE_CAP = 1_000_000_000;
 
 function guideProtectedColumns() {
   if (guideMode === 'four-wide') return new Set([3, 4, 5, 6]);
-  return new Set([guideMode === 'flat-left' ? 0 : 9]);
+  const emptyColumns = [];
+  for (let x = 0; x < W; x++) {
+    let empty = true;
+    for (let y = 0; y < H; y++) {
+      if (state.board[y][x] || state.fixed[y][x]) { empty = false; break; }
+    }
+    if (empty) emptyColumns.push(x);
+  }
+  if (!emptyColumns.length) return new Set([9]);
+  emptyColumns.sort((a, b) => Math.min(a, W - 1 - a) - Math.min(b, W - 1 - b) || a - b);
+  return new Set([emptyColumns[0]]);
 }
 
 function guideRotationStates(type) {
@@ -877,7 +895,7 @@ function ensureGuideWorker() {
     const SHAPES=${JSON.stringify(SHAPES)};
     const GUIDE_BEAM_WIDTH=${GUIDE_BEAM_WIDTH};
     const GUIDE_ROUTE_CAP=${GUIDE_ROUTE_CAP};
-    let guideMode='flat-right';
+    let guideMode='flat-any';
     let state=null;
     let animating=false;
     function ensureQueue() {}
@@ -1254,8 +1272,6 @@ function render() {
   templateButton.textContent = '開幕TSD';
   templateButton.setAttribute('aria-label', templateOn ? TEMPLATES[templateIndex].name : 'テンプレート オフ');
   guideButton.textContent = `ガイド ${guideEnabled ? 'ON' : 'OFF'}`;
-  guideModeButton.textContent = guideMode === 'four-wide' ? '4連' : `平積み ${guideMode === 'flat-left' ? '左' : '右'}`;
-  bestToggleButton.textContent = `即置 ${bestDropEnabled ? 'ON' : 'OFF'}`;
   updateGuideDisplay();
   scheduleGuideAnalysis();
 }
@@ -1297,20 +1313,6 @@ function toggleGuide() {
   render();
 }
 
-function cycleGuideMode() {
-  guideMode = guideMode === 'flat-right' ? 'flat-left' : guideMode === 'flat-left' ? 'four-wide' : 'flat-right';
-  localStorage.setItem('tetris-guide-mode', guideMode);
-  guideAnalysisSignature = '';
-  guideAnalysis = null;
-  render();
-}
-
-function toggleBestDrop() {
-  bestDropEnabled = !bestDropEnabled;
-  localStorage.setItem('tetris-best-drop-enabled', bestDropEnabled ? '1' : '0');
-  render();
-}
-
 // Input
 const ACTIONS = {
   left: () => move(-1, 0),
@@ -1326,8 +1328,6 @@ const ACTIONS = {
   reset,
   template: cycleTemplate,
   guide: toggleGuide,
-  guideMode: cycleGuideMode,
-  bestToggle: toggleBestDrop,
   mirror: () => {
     templateMirror = !templateMirror;
     render();
@@ -1355,6 +1355,7 @@ function startRepeat(name, source) {
 for (const button of actionButtons) {
   button.addEventListener('pointerdown', event => {
     event.preventDefault();
+    requestLandscape();
     const name = button.dataset.action;
     const repeats = ['left', 'right', 'down'].includes(name);
     if (repeats) {
